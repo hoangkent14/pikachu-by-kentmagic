@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Pikachu Classic PRO - Refactored</title>
+    <style>
+        :root {
+            --bg-color: #3C88C7;
+            --cell-size: 50px;
+            --gap: 4px;
+            --primary-yellow: #fde047;
+        }
+        body {
+            background: linear-gradient(135deg, var(--bg-color), #1e293b);
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; margin: 0; font-family: 'Segoe UI', Tahoma, sans-serif;
+            color: white; overflow: hidden;
+        }
+        #game-container { position: relative; padding: 20px; background: rgba(255,255,255,0.05); border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        #board {
+            display: grid;
+            grid-template-columns: repeat(14, var(--cell-size));
+            grid-template-rows: repeat(12, var(--cell-size));
+            gap: var(--gap);
+            user-select: none;
+        }
+        .cell {
+            background: white; border-radius: 8px; font-size: 28px;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer; transition: all 0.15s ease;
+            box-shadow: inset 0 -3px 0 rgba(0,0,0,0.1);
+        }
+        .cell:hover { transform: scale(1.05); filter: brightness(1.1); }
+        .cell.selected { background: var(--primary-yellow); transform: scale(0.95); box-shadow: 0 0 15px var(--primary-yellow); }
+        .cell.empty { visibility: hidden; pointer-events: none; }
+        
+        canvas { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 10; }
+        
+        .controls { margin-top: 20px; display: flex; gap: 10px; justify-content: center; }
+        button {
+            padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;
+            background: #38bdf8; color: #0f172a; font-weight: bold; transition: 0.2s;
+        }
+        button:hover { background: #7dd3fc; }
+        #info { font-size: 20px; margin-bottom: 15px; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div>
+    <div id="info">
+        🏆 Điểm: <span id="score">0</span> | ⏳ <span id="time">300</span>s
+    </div>
+    <div id="game-container">
+        <div id="board"></div>
+        <canvas id="canvas"></canvas>
+    </div>
+    <div class="controls">
+        <button onclick="hint()">Gợi ý</button>
+        <button onclick="shuffleBoard()">Trộn bài</button>
+        <button onclick="initGame()">Chơi lại</button>
+    </div>
+</div>
+
+<script>
+const ROWS = 12, COLS = 14;
+const ICONS = ["🍎","🍌","🍇","🍓","🍑","🍒","🥝","🍍","🥥","🍉","🥕","🌽"];
+let board = [], selectedCell = null, score = 0, timeLeft = 300, isProcessing = false, timerId;
+const boardDiv = document.getElementById("board");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+function initGame() {
+    // Tạo dữ liệu cặp icon
+    let pairs = [];
+    const totalCells = (ROWS-2) * (COLS-2);
+    for(let i=0; i < totalCells/2; i++) {
+        let icon = ICONS[i % ICONS.length];
+        pairs.push(icon, icon);
+    }
+    // Trộn bài (Fisher-Yates)
+    for(let i = pairs.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pairs[i], pairs[j]] = [pairs[j], pairs[i]];
+    }
+
+    // Xây dựng board và DOM
+    board = [];
+    boardDiv.innerHTML = "";
+    let pIdx = 0;
+    for(let r=0; r<ROWS; r++) {
+        board[r] = [];
+        for(let c=0; c<COLS; c++) {
+            const isEdge = r===0 || c===0 || r===ROWS-1 || c===COLS-1;
+            board[r][c] = isEdge ? "" : pairs[pIdx++];
+            createCellEl(r, c);
+        }
+    }
+
+    resizeCanvas();
+    score = 0; document.getElementById("score").innerText = score;
+    timeLeft = 300; document.getElementById("time").innerText = timeLeft;
+    clearInterval(timerId);
+    timerId = setInterval(updateTimer, 1000);
+    isProcessing = false;
+    selectedCell = null;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+}
+
+function createCellEl(r, c) {
+    const cell = document.createElement("div");
+    cell.className = `cell ${board[r][c] === "" ? 'empty' : ''}`;
+    cell.id = `cell-${r}-${c}`;
+    cell.textContent = board[r][c];
+    cell.onclick = () => handleSelect(r, c, cell);
+    boardDiv.appendChild(cell);
+}
+
+function handleSelect(r, c, el) {
+    if (isProcessing || el.classList.contains("empty")) return;
+
+    if (!selectedCell) {
+        selectedCell = {r, c, el};
+        el.classList.add("selected");
+    } else {
+        if (selectedCell.r === r && selectedCell.c === c) {
+            el.classList.remove("selected");
+            selectedCell = null;
+            return;
+        }
+
+        if (board[selectedCell.r][selectedCell.c] === board[r][c]) {
+            const path = findPath(selectedCell.r, selectedCell.c, r, c);
+            if (path) {
+                executeMatch(selectedCell, {r, c, el}, path);
+                return;
+            }
+        }
+        
+        // Không khớp hoặc không có đường đi
+        selectedCell.el.classList.remove("selected");
+        selectedCell = {r, c, el};
+        el.classList.add("selected");
+    }
+}
+
+function executeMatch(p1, p2, path) {
+    isProcessing = true;
+    drawPath(path);
+    
+    setTimeout(() => {
+        board[p1.r][p1.c] = "";
+        board[p2.r][p2.c] = "";
+        p1.el.classList.add("empty");
+        p2.el.classList.add("empty");
+        
+        score += 10;
+        document.getElementById("score").innerText = score;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        selectedCell = null;
+        isProcessing = false;
+
+        if (isWin()) {
+            endGame(true);
+            return;
+        }
+
+        if (!hasMoves()) {
+            // Nếu không còn nước đi, trộn lại và đảm bảo có nước đi
+            shuffleBoard(true);
+        }
+    }, 250);
+}
+
+function findPath(r1, c1, r2, c2) {
+    // BFS with up to 2 turns
+    const queue = [{r: r1, c: c1, dir: -1, turns: 0, path: [[r1, c1]]}];
+    const visited = new Map();
+
+    while (queue.length > 0) {
+        const cur = queue.shift();
+        if (cur.turns > 2) continue;
+        if (cur.r === r2 && cur.c === c2) return cur.path;
+
+        const dirs = [[0,1], [1,0], [0,-1], [-1,0]]; // right, down, left, up
+        for (let i=0; i<4; i++) {
+            let nr = cur.r + dirs[i][0];
+            let nc = cur.c + dirs[i][1];
+
+            while (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
+                // Nếu gặp ô có icon khác ô đích thì dừng
+                if (board[nr][nc] !== "" && (nr !== r2 || nc !== c2)) break;
+                
+                const newTurns = (cur.dir === -1 || cur.dir === i) ? cur.turns : cur.turns + 1;
+                if (newTurns <= 2) {
+                    const key = `${nr}-${nc}-${i}`;
+                    if (!visited.has(key) || visited.get(key) > newTurns) {
+                        visited.set(key, newTurns);
+                        queue.push({r: nr, c: nc, dir: i, turns: newTurns, path: [...cur.path, [nr, nc]]});
+                    }
+                }
+                nr += dirs[i][0];
+                nc += dirs[i][1];
+            }
+        }
+    }
+    return null;
+}
+
+function drawPath(path) {
+    if (!path || path.length === 0) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = "#38bdf8";
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = "#38bdf8";
+    
+    ctx.beginPath();
+    path.forEach(([r, c], i) => {
+        const el = document.getElementById(`cell-${r}-${c}`);
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const containerRect = document.getElementById("game-container").getBoundingClientRect();
+        
+        const x = rect.left - containerRect.left + rect.width/2;
+        const y = rect.top - containerRect.top + rect.height/2;
+        
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    // Xóa đường sau 400ms nếu không có xử lý tiếp
+    setTimeout(() => {
+        if (!isProcessing) ctx.clearRect(0,0,canvas.width,canvas.height);
+    }, 400);
+}
+
+function shuffleBoard(ensureMove = false) {
+    // Lấy danh sách các icon còn lại
+    let items = [];
+    for (let r=1; r<ROWS-1; r++) {
+        for (let c=1; c<COLS-1; c++) {
+            if (board[r][c] !== "") items.push(board[r][c]);
+        }
+    }
+    if (items.length === 0) return;
+
+    // Trộn
+    for(let i = items.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [items[i], items[j]] = [items[j], items[i]];
+    }
+
+    // Gán lại
+    let idx = 0;
+    for(let r=1; r<ROWS-1; r++) {
+        for(let c=1; c<COLS-1; c++) {
+            if (board[r][c] !== "") {
+                board[r][c] = items[idx++];
+                const el = document.getElementById(`cell-${r}-${c}`);
+                if (el) el.textContent = board[r][c];
+                el && el.classList.remove("selected");
+            }
+        }
+    }
+
+    // Nếu yêu cầu đảm bảo có nước đi, thử vài lần
+    if (ensureMove) {
+        let attempts = 0;
+        while (!hasMoves() && attempts < 10) {
+            // trộn lại items và gán
+            for(let i = items.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [items[i], items[j]] = [items[j], items[i]];
+            }
+            idx = 0;
+            for(let r=1; r<ROWS-1; r++) {
+                for(let c=1; c<COLS-1; c++) {
+                    if (board[r][c] !== "") {
+                        board[r][c] = items[idx++];
+                        const el = document.getElementById(`cell-${r}-${c}`);
+                        if (el) el.textContent = board[r][c];
+                    }
+                }
+            }
+            attempts++;
+        }
+    }
+}
+
+function hasMoves() {
+    // Duyệt tất cả cặp khác nhau, nếu có cặp cùng icon và findPath trả về path thì có nước đi
+    for (let r1 = 1; r1 < ROWS-1; r1++) {
+        for (let c1 = 1; c1 < COLS-1; c1++) {
+            if (board[r1][c1] === "") continue;
+            for (let r2 = r1; r2 < ROWS-1; r2++) {
+                for (let c2 = (r2 === r1 ? c1+1 : 1); c2 < COLS-1; c2++) {
+                    if (board[r2][c2] === "") continue;
+                    if (board[r1][c1] !== board[r2][c2]) continue;
+                    const path = findPath(r1, c1, r2, c2);
+                    if (path) return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+function isWin() {
+    for (let r=1; r<ROWS-1; r++) {
+        for (let c=1; c<COLS-1; c++) {
+            if (board[r][c] !== "") return false;
+        }
+    }
+    return true;
+}
+
+function hint() {
+    if (isProcessing) return;
+    // Tìm một nước đi hợp lệ và highlight nhanh
+    for (let r1 = 1; r1 < ROWS-1; r1++) {
+        for (let c1 = 1; c1 < COLS-1; c1++) {
+            if (board[r1][c1] === "") continue;
+            for (let r2 = r1; r2 < ROWS-1; r2++) {
+                for (let c2 = (r2 === r1 ? c1+1 : 1); c2 < COLS-1; c2++) {
+                    if (board[r2][c2] === "") continue;
+                    if (board[r1][c1] !== board[r2][c2]) continue;
+                    const path = findPath(r1, c1, r2, c2);
+                    if (path) {
+                        // flash hai ô
+                        const el1 = document.getElementById(`cell-${r1}-${c1}`);
+                        const el2 = document.getElementById(`cell-${r2}-${c2}`);
+                        if (!el1 || !el2) return;
+                        el1.classList.add("selected");
+                        el2.classList.add("selected");
+                        drawPath(path);
+                        setTimeout(() => {
+                            el1.classList.remove("selected");
+                            el2.classList.remove("selected");
+                            ctx.clearRect(0,0,canvas.width,canvas.height);
+                        }, 700);
+                        return;
+                    }
+                }
+            }
+        }
+    }
+    // Nếu không tìm được, trộn lại
+    shuffleBoard(true);
+}
+
+function updateTimer() {
+    if (timeLeft > 0) {
+        timeLeft--;
+        document.getElementById("time").innerText = timeLeft;
+        if (timeLeft === 0) endGame(false);
+    }
+}
+
+function endGame(won) {
+    clearInterval(timerId);
+    isProcessing = true;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    // Bỏ chọn ô nếu còn
+    if (selectedCell && selectedCell.el) selectedCell.el.classList.remove("selected");
+    selectedCell = null;
+
+    setTimeout(() => {
+        if (won) {
+            alert(`Chúc mừng! Bạn đã thắng. Điểm: ${score}`);
+        } else {
+            alert(`Hết giờ! Điểm: ${score}`);
+        }
+        isProcessing = false;
+    }, 100);
+}
+
+function resizeCanvas() {
+    const container = document.getElementById("game-container");
+    // Set canvas size to container size
+    const rect = container.getBoundingClientRect();
+    // Support high DPI
+    const dpr = window.devicePixelRatio || 1;
+    canvas.style.width = rect.width + "px";
+    canvas.style.height = rect.height + "px";
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+}
+
+window.addEventListener('resize', resizeCanvas);
+window.onload = initGame;
+</script>
+</body>
+</html>
