@@ -3,32 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Pikachu dự án S by kentmagic v0.39d</title>
+  <title>Pikachu dự án S by kentmagic v0.39e (patched)</title>
   <!--
    ==============================================
-  
-  Các thay đổi chính so với v0.39:
-  - Thêm phím tắt:  Esc (Pause), H (Hint), R (Retry), N (Next), M (Menu), mũi tên (di chuyển), Enter (chọn).
-  - ARIA cho thanh thời gian (role=progressbar, aria-valuenow/max).
-  - Sửa kích thước font HUD (compact đúng nghĩa).
-  - Nút ⚡ Hiệu năng (giảm shadow/blur emoji).
-  - Lưu level & autoProgress vào localStorage.
-  - Hàng đợi pathfinding dạng deque (không giới hạn cứng 4096).
-  - Tôn trọng prefers-reduced-motion.
-
-  Phím tắt (chi tiết):
-    Esc: Tạm dừng / Tiếp tục.
-  - H: Gợi ý; R: Chơi lại; N: Level kế tiếp (nếu thắng); M: Menu level.
-  - Mũi tên: Di chuyển con trỏ tới ô còn lại gần nhất theo hướng; Enter: chọn ô.
-
-  Cấu trúc chính của file:
-  - <style>: Theme + layout, HUD, overlay, time bar, compact HUD, reduced motion.
-  - <header>: Ribbon stats + ribbon actions (các nút).
-  - #wrap: <canvas> (game), #overlayDom (Pause/Win/Lose), #startMenu (menu đầu).
-  - .timeDockRight: Thanh thời gian dọc bên phải + aria.
-  - <script>: Toàn bộ logic game.
-
- -->
+  BẢN VÁ LỆCH VẼ
+  - Sửa hàm roundRect (arcTo thứ 3 dùng x, y+h thay vì x, y+y).
+  - Loại bỏ offset +1px theo trục Y ở drawIcon & drawShiftAnimation để tâm đồng nhất.
+  - Thêm clearCanvas() để xoá canvas ở transform identity, tránh lệch do scale.
+  - Giữ nguyên style & chức năng hiện có.
+  -->
   <style>
     :root { --bg:#0066cc; --panel:#455485; --text:#e8ecff; --muted:#a7b0d8; --accent:#66e3ff; --bad:#ff5a7a; }
     body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; background: radial-gradient(1200px 600px at 30% 20%, #192454 0%, var(--bg) 55%); color: var(--text); display:flex; flex-direction:column; min-height:100vh; }
@@ -139,28 +122,6 @@
 
   <script>
   (() => {
-    /**
-     * MEMO — các phần quan trọng trong script
-     * 1) DOM refs: gom tất cả phần tử cần thao tác.
-     * 2) LEVELS/ICONS: cấu hình cỡ bàn cờ, thời gian, số hint, kiểu dồn; ICONS là danh sách emoji.
-     * 3) Trạng thái game: grid (ma trận), selected/hover/hintPair, điểm/giờ, hiệu ứng dồn.
-     * 4) Tiện ích: clamp/now/easeOut/lerp, shuffleIcons().
-     * 5) HUD & Overlay: updateTimeBar() có ARIA; updateHUD()/syncDomOverlay().
-     * 6) Timer loop: requestAnimationFrame + countdown per second; xử lý shiftAnim (dồn).
-     * 7) Pathfinding: findPathQueue() (≤2 turns) dùng deque; reconstruct() tạo đường đi.
-     * 8) Shuffle: shuffleRemainingEnsureSolvable() đảm bảo luôn còn cặp.
-     * 9) Flow: newGame(), afterShiftDone() (qua màn, auto next nếu bật).
-     * 10) Dồn ô: computeCompressedGridAndMoves() cho 4 hướng + random.
-     * 11) Input: handleSelect(), pointer, phím tắt attachKeyboard().
-     * 12) Render: drawIcon()/drawPath()/drawShiftAnimation()/draw().
-     * 13) Init: populateLevelSelect(), init().
-     *
-     * Chỉnh sửa nhanh:
-     * - Muốn tăng điểm thưởng khi hết bàn: sửa score += 200 trong afterShiftDone().
-     * - Muốn cộng/trừ điểm khi dùng Hint: sửa trong $btnHint.onclick.
-     * - Muốn đổi tốc độ dồn: sửa duration trong shiftAnim = { duration: 180 }.
-     */
-
     // 1) DOM REFS & ELEMENTS
     const canvas = document.getElementById('c');
     const ctx = canvas.getContext('2d');
@@ -234,7 +195,7 @@
     const easeOutCubic  = t => 1 - Math.pow(1 - t, 3);
     const lerp  = (a,b,t) => a + (b-a)*t;
 
-    function shuffleIcons() { for (let i=ICONS.length-1;i>0;i--) { const j=(Math.random()*(i+1))|0; [ICONS[i], ICONS[j]] = [ICONS[j], ICONS[i]]; } }
+    function shuffleIcons() { for (let i=ICONS.length-1;i>0;i--) { const j=(Math.random()*(i+1)|0); [ICONS[i], ICONS[j]] = [ICONS[j], ICONS[i]]; } }
 
     function applyLevel() {
       const L = LEVELS[levelIndex];
@@ -324,11 +285,11 @@
     function findPathQueue(a,b){ const ax=a.x+1,ay=a.y+1,bx=b.x+1,by=b.y+1; const W=COLS+2,H=ROWS+2; const visited=Array.from({length:H},()=>Array.from({length:W},()=>[999,999,999,999])); const Q=[]; function push(x,y,dir,turns,prev){ if (turns>2) return; if (visited[y][x][dir]<=turns) return; visited[y][x][dir]=turns; Q.push({x,y,dir,turns,prev}); } for (let d=0; d<4; d++) push(ax,ay,d,0,null); let head=0; while (head<Q.length){ const cur=Q[head++]; const {dx,dy}=DIRS[cur.dir]; let nx=cur.x+dx, ny=cur.y+dy; while (nx>=0&&nx<W&&ny>=0&&ny<H){ const cell=getExpandedCell(nx,ny); if (cell!==0 && !(nx===bx && ny===by)) break; const node={x:nx,y:ny,dir:cur.dir,turns:cur.turns,prev:cur}; if (nx===bx&&ny===by) return reconstruct(node); for (let nd=0; nd<4; nd++){ const add=(nd===cur.dir)?0:1; push(nx,ny,nd,cur.turns+add,node);} nx+=dx; ny+=dy; } } return null; }
 
     // 8) SHUFFLE / ENSURE SOLVABLE
-    function findAnyPairFast(){ const buckets=new Map(); for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++){ const v=grid[y][x]; if (!v) continue; if (!buckets.has(v)) buckets.set(v,[]); buckets.get(v).push({x,y}); } for (const [v,arr] of buckets){ for (let i=arr.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [arr[i],arr[j]]=[arr[j],arr[i]]; } for (let i=0;i<arr.length;i++) for (let j=i+1;j<arr.length;j++){ const path=findPathQueue(arr[i],arr[j]); if (path) return {a:arr[i], b:arr[j], path}; } } return null; }
-    function shuffleRemainingEnsureSolvable(){ const vals=[]; for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) if (grid[y][x]) vals.push(grid[y][x]); if (vals.length<=2) return; let guard=0; while (guard++<60){ for (let i=vals.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [vals[i],vals[j]]=[vals[j],vals[i]]; } let k=0; for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) if (grid[y][x]) grid[y][x]=vals[k++]; if (findAnyPairFast()) return; } }
+    function findAnyPairFast(){ const buckets=new Map(); for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++){ const v=grid[y][x]; if (!v) continue; if (!buckets.has(v)) buckets.set(v,[]); buckets.get(v).push({x,y}); } for (const [v,arr] of buckets){ for (let i=arr.length-1;i>0;i--){ const j=(Math.random()*(i+1)|0); [arr[i],arr[j]]=[arr[j],arr[i]]; } for (let i=0;i<arr.length;i++) for (let j=i+1;j<arr.length;j++){ const path=findPathQueue(arr[i],arr[j]); if (path) return {a:arr[i], b:arr[j], path}; } } return null; }
+    function shuffleRemainingEnsureSolvable(){ const vals=[]; for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) if (grid[y][x]) vals.push(grid[y][x]); if (vals.length<=2) return; let guard=0; while (guard++<60){ for (let i=vals.length-1;i>0;i--){ const j=(Math.random()*(i+1)|0); [vals[i],vals[j]]=[vals[j],vals[i]]; } let k=0; for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) if (grid[y][x]) grid[y][x]=vals[k++]; if (findAnyPairFast()) return; } }
 
     // 9) GAME FLOW
-    function newGame(){ if (nextLevelTimer){ clearTimeout(nextLevelTimer); nextLevelTimer=null;} shuffleIcons(); gameOver=false; overlayMode=null; applyLevel(); timeLeft=START_TIME; hintLeft=HINT_START; selected=null; hover=null; hintPair=null; lastPath=null; animPathUntil=0; paused=false; shiftAnim=null; const total=COLS*ROWS; if (total%2!==0) throw new Error('COLS*ROWS must be even'); const values=[]; for (let i=0;i<total/2;i++){ const type=(i%TYPES)+1; values.push(type,type);} for (let i=values.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [values[i],values[j]]=[values[j],values[i]];} grid=Array.from({length:ROWS},()=>Array(COLS).fill(0)); let k=0; for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) grid[y][x]=values[k++]; let guard=0; while(!findAnyPairFast() && guard++<50) shuffleRemainingEnsureSolvable(); resizeCanvasToWrap(); updateHUD(); draw(); startTimer(); }
+    function newGame(){ if (nextLevelTimer){ clearTimeout(nextLevelTimer); nextLevelTimer=null;} shuffleIcons(); gameOver=false; overlayMode=null; applyLevel(); timeLeft=START_TIME; hintLeft=HINT_START; selected=null; hover=null; hintPair=null; lastPath=null; animPathUntil=0; paused=false; shiftAnim=null; const total=COLS*ROWS; if (total%2!==0) throw new Error('COLS*ROWS must be even'); const values=[]; for (let i=0;i<total/2;i++){ const type=(i%TYPES)+1; values.push(type,type);} for (let i=values.length-1;i>0;i--){ const j=(Math.random()*(i+1)|0); [values[i],values[j]]=[values[j],values[i]];} grid=Array.from({length:ROWS},()=>Array(COLS).fill(0)); let k=0; for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++) grid[y][x]=values[k++]; let guard=0; while(!findAnyPairFast() && guard++<50) shuffleRemainingEnsureSolvable(); resizeCanvasToWrap(); updateHUD(); draw(); startTimer(); }
     function afterShiftDone(){ if (countLeft()===0){ score+=200; gameOver=true; overlayMode=(levelIndex<LEVELS.length-1)?'levelclear':'allclear'; updateHUD(); draw(); if (levelIndex<LEVELS.length-1 && autoProgress){ nextLevelTimer=setTimeout(()=>{ levelIndex++; try{ localStorage.setItem('pikachu_s_cfg', JSON.stringify({levelIndex, autoProgress})); }catch{} nextLevelTimer=null; newGame(); },1200);} } else { if (!findAnyPairFast()) shuffleRemainingEnsureSolvable(); updateHUD(); draw(); } }
 
     // 10) COMPRESS / SHIFT LOGIC & ANIM
@@ -363,8 +324,6 @@
     $btnPerf.onclick = () => { PERF_MODE=!PERF_MODE; showToast(PERF_MODE?'Đã bật chế độ hiệu năng':'Đã tắt chế độ hiệu năng'); draw(); };
 
     // ========== Keyboard controls ==========
-    // Phím tắt: Space (Chọn), Esc (Pause), H (Hint), R (Retry), N (Next), M (Menu),
-    // Mũi tên (di chuyển selection qua ô còn lại), Enter (chọn).
     (function attachKeyboard(){
       function isTypingTarget(el){ if (!el) return false; const tag=el.tagName; return tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||el.isContentEditable; }
       function nextNonEmptyFrom(x,y,dir){ if (grid.length===0) return null; let cx=(x??0), cy=(y??0); const step={ left:[-1,0], right:[1,0], up:[0,-1], down:[0,1] }[dir]; for (let k=0;k<COLS*ROWS;k++){ cx=(cx+step[0]+COLS)%COLS; cy=(cy+step[1]+ROWS)%ROWS; if (grid[cy][cx]) return {x:cx,y:cy}; } return null; }
@@ -372,9 +331,7 @@
 
       window.addEventListener('keydown', (e)=>{
         if (isTypingTarget(document.activeElement)) return;
-        // SPACE => SELECT (không còn là Pause)
         if (e.key===' '||e.key==='Spacebar'){ e.preventDefault(); if (paused||gameOver||shiftAnim) return; const cur=selected??firstNonEmpty(); if (!cur) return; handleSelect(cur); return; }
-        // ESC => Pause
         if (e.key==='Escape'){ e.preventDefault(); if (!gameOver && !shiftAnim){ paused=!paused; overlayMode=paused?'paused':null; updateHUD(); draw(); } return; }
         if (e.key.toLowerCase()==='h'){ e.preventDefault(); $btnHint.click(); return; }
         if (e.key.toLowerCase()==='r'){ e.preventDefault(); $btnOverlayRetry.click(); return; }
@@ -389,12 +346,14 @@
     })();
 
     // 12) RENDERING
-    function drawIcon(ctx, cx, cy, size, typeId){ const emoji=ICONS[(typeId-1)%ICONS.length]||'❓'; ctx.save(); if (!PERF_MODE){ ctx.shadowColor='rgba(0,0,0,.35)'; ctx.shadowBlur=Math.max(2, size*0.08);} ctx.textAlign='center'; ctx.textBaseline='middle'; const fontPx=Math.floor(size*0.92); ctx.font=`700 ${fontPx}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif`; ctx.fillText(emoji, cx, cy+1); ctx.restore(); }
+    function drawIcon(ctx, cx, cy, size, typeId){ const emoji=ICONS[(typeId-1)%ICONS.length]||'❓'; ctx.save(); if (!PERF_MODE){ ctx.shadowColor='rgba(0,0,0,.35)'; ctx.shadowBlur=Math.max(2, size*0.08);} ctx.textAlign='center'; ctx.textBaseline='middle'; const fontPx=Math.floor(size*0.92); ctx.font=`700 ${fontPx}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif`; ctx.fillText(emoji, cx, cy); ctx.restore(); }
     function drawPath(){ if (!lastPath) return; if (now()>animPathUntil && !hintPair) return; ctx.save(); ctx.lineWidth=6; ctx.lineJoin='round'; ctx.lineCap='round'; ctx.strokeStyle='rgba(102,227,255,.75)'; ctx.shadowColor='rgba(102,227,255,.35)'; ctx.shadowBlur=14; ctx.beginPath(); for (let i=0;i<lastPath.length;i++){ const p=lastPath[i]; const cx=boardX+(p.x-1)*tileSize+tileSize/2; const cy=boardY+(p.y-1)*tileSize+tileSize/2; if (i===0) ctx.moveTo(cx,cy); else ctx.lineTo(cx,cy);} ctx.stroke(); ctx.shadowBlur=0; ctx.lineWidth=2.5; ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.beginPath(); for (let i=0;i<lastPath.length;i++){ const p=lastPath[i]; const cx=boardX+(p.x-1)*tileSize+tileSize/2; const cy=boardY+(p.y-1)*tileSize+tileSize/2; if (i===0) ctx.moveTo(cx,cy); else ctx.lineTo(cx,cy);} ctx.stroke(); ctx.restore(); }
-    function roundRect(x,y,w,h,r){ const rr=Math.min(r,w/2,h/2); ctx.beginPath(); ctx.moveTo(x+rr,y); ctx.arcTo(x+w,y,x+w,y+h,rr); ctx.arcTo(x+w,y+h,x,y+y,rr); ctx.arcTo(x,y+h,x,y,rr); ctx.arcTo(x,y,x+w,y,rr); ctx.closePath(); }
-    function drawShiftAnimation(){ if (!shiftAnim) return; const p=shiftAnim.progress??0; for (const m of shiftAnim.moves){ const sx=boardX+m.from.x*tileSize+tileSize/2; const sy=boardY+m.from.y*tileSize+tileSize/2+1; const tx=boardX+m.to.x*tileSize+tileSize/2; const ty=boardY+m.to.y*tileSize+tileSize/2+1; const cx=lerp(sx,tx,p); const cy=lerp(sy,ty,p); const pad=Math.floor(tileSize*0.16); const size=tileSize-pad*2; ctx.save(); ctx.globalAlpha=0.95; drawIcon(ctx,cx,cy,size,m.v); ctx.restore(); } }
+    function roundRect(x,y,w,h,r){ const rr=Math.min(r,w/2,h/2); ctx.beginPath(); ctx.moveTo(x+rr,y); ctx.arcTo(x+w,y,x+w,y+h,rr); ctx.arcTo(x+w,y+h,x,y+h,rr); ctx.arcTo(x,y+h,x,y,rr); ctx.arcTo(x,y,x+w,y,rr); ctx.closePath(); }
+    function drawShiftAnimation(){ if (!shiftAnim) return; const p=shiftAnim.progress??0; for (const m of shiftAnim.moves){ const sx=boardX+m.from.x*tileSize+tileSize/2; const sy=boardY+m.from.y*tileSize+tileSize/2; const tx=boardX+m.to.x*tileSize+tileSize/2; const ty=boardY+m.to.y*tileSize+tileSize/2; const cx=lerp(sx,tx,p); const cy=lerp(sy,ty,p); const pad=Math.floor(tileSize*0.16); const size=tileSize-pad*2; ctx.save(); ctx.globalAlpha=0.95; drawIcon(ctx,cx,cy,size,m.v); ctx.restore(); } }
 
-    function draw(){ const rect=canvas.getBoundingClientRect(); ctx.clearRect(0,0,rect.width,rect.height); ctx.save(); ctx.globalAlpha=0.15; ctx.fillStyle='#ffffff'; for (let i=0;i<80;i++){ const x=(i*97 % rect.width); const y=(i*53 % rect.height); ctx.fillRect(x,y,1.5,1.5);} ctx.restore(); ctx.save(); ctx.globalAlpha=0.35; ctx.fillStyle='#000'; roundRect(boardX-10,boardY-10,COLS*tileSize+20,ROWS*tileSize+20,18); ctx.fill(); ctx.restore(); ctx.save(); ctx.fillStyle='rgba(18,26,51,.6)'; ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.lineWidth=2; roundRect(boardX-8,boardY-8,COLS*tileSize+16,ROWS*tileSize+16,18); ctx.fill(); ctx.stroke(); ctx.restore(); let movingSrc=null, movingDst=null; if (shiftAnim){ movingSrc=new Set(); movingDst=new Set(); for (const m of shiftAnim.moves){ movingSrc.add(m.from.x+','+m.from.y); movingDst.add(m.to.x+','+m.to.y);} } for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++){ const px=boardX+x*tileSize; const py=boardY+y*tileSize; const v=grid[y][x]; ctx.save(); const baseA=v?0.18:0.08; const baseB=v?0.12:0.06; const grad=ctx.createLinearGradient(px,py,px,py+tileSize); grad.addColorStop(0,`rgba(255,255,255,${baseA})`); grad.addColorStop(1,`rgba(255,255,255,${baseB})`); ctx.fillStyle=grad; ctx.strokeStyle='rgba(255,255,255,.10)'; ctx.lineWidth=1.2; roundRect(px+3,py+3,tileSize-6,tileSize-6,Math.floor(tileSize*0.22)); ctx.fill(); ctx.stroke(); const isSel=selected && selected.x===x && selected.y===y; const isHover=hover && hover.x===x && hover.y===y; const isHint=hintPair && ((hintPair[0].x===x && hintPair[0].y===y)||(hintPair[1].x===x && hintPair[1].y===y)); if (isHint){ ctx.strokeStyle='rgba(102,227,255,.85)'; ctx.lineWidth=3; roundRect(px+2.5,py+2.5,tileSize-5,tileSize-5,Math.floor(tileSize*0.22)); ctx.stroke(); } else if (isSel){ ctx.strokeStyle='rgba(102,227,255,.75)'; ctx.lineWidth=3; roundRect(px+2.5,py+2.5,tileSize-5,tileSize-5,Math.floor(tileSize*0.22)); ctx.stroke(); } else if (isHover && v){ ctx.strokeStyle='rgba(255,255,255,.25)'; ctx.lineWidth=2; roundRect(px+2.5,py+2.5,tileSize-5,tileSize-5,Math.floor(tileSize*0.22)); ctx.stroke(); } if (v){ const key=x+','+y; const isMovingCell=shiftAnim && (movingSrc.has(key)||movingDst.has(key)); if (!isMovingCell){ const pad=Math.floor(tileSize*0.16); const cx=px+tileSize/2; const cy=py+tileSize/2+1; const size=tileSize-pad*2; drawIcon(ctx,cx,cy,size,v); } } ctx.restore(); } if (!paused){ drawPath(); drawShiftAnimation(); } }
+    function clearCanvas(){ ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,canvas.width,canvas.height); ctx.restore(); }
+
+    function draw(){ const rect=canvas.getBoundingClientRect(); clearCanvas(); ctx.save(); ctx.globalAlpha=0.15; ctx.fillStyle='#ffffff'; for (let i=0;i<80;i++){ const x=(i*97 % rect.width); const y=(i*53 % rect.height); ctx.fillRect(x,y,1.5,1.5);} ctx.restore(); ctx.save(); ctx.globalAlpha=0.35; ctx.fillStyle='#000'; roundRect(boardX-10,boardY-10,COLS*tileSize+20,ROWS*tileSize+20,18); ctx.fill(); ctx.restore(); ctx.save(); ctx.fillStyle='rgba(18,26,51,.6)'; ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.lineWidth=2; roundRect(boardX-8,boardY-8,COLS*tileSize+16,ROWS*tileSize+16,18); ctx.fill(); ctx.stroke(); ctx.restore(); let movingSrc=null, movingDst=null; if (shiftAnim){ movingSrc=new Set(); movingDst=new Set(); for (const m of shiftAnim.moves){ movingSrc.add(m.from.x+','+m.from.y); movingDst.add(m.to.x+','+m.to.y);} } for (let y=0;y<ROWS;y++) for (let x=0;x<COLS;x++){ const px=boardX+x*tileSize; const py=boardY+y*tileSize; const v=grid[y][x]; ctx.save(); const baseA=v?0.18:0.08; const baseB=v?0.12:0.06; const grad=ctx.createLinearGradient(px,py,px,py+tileSize); grad.addColorStop(0,`rgba(255,255,255,${baseA})`); grad.addColorStop(1,`rgba(255,255,255,${baseB})`); ctx.fillStyle=grad; ctx.strokeStyle='rgba(255,255,255,.10)'; ctx.lineWidth=1.2; roundRect(px+3,py+3,tileSize-6,tileSize-6,Math.floor(tileSize*0.22)); ctx.fill(); ctx.stroke(); const isSel=selected && selected.x===x && selected.y===y; const isHover=hover && hover.x===x && hover.y===y; const isHint=hintPair && ((hintPair[0].x===x && hintPair[0].y===y)||(hintPair[1].x===x && hintPair[1].y===y)); if (isHint){ ctx.strokeStyle='rgba(102,227,255,.85)'; ctx.lineWidth=3; roundRect(px+2.5,py+2.5,tileSize-5,tileSize-5,Math.floor(tileSize*0.22)); ctx.stroke(); } else if (isSel){ ctx.strokeStyle='rgba(102,227,255,.75)'; ctx.lineWidth=3; roundRect(px+2.5,py+2.5,tileSize-5,tileSize-5,Math.floor(tileSize*0.22)); ctx.stroke(); } else if (isHover && v){ ctx.strokeStyle='rgba(255,255,255,.25)'; ctx.lineWidth=2; roundRect(px+2.5,py+2.5,tileSize-5,tileSize-5,Math.floor(tileSize*0.22)); ctx.stroke(); } if (v){ const key=x+','+y; const isMovingCell=shiftAnim && (movingSrc.has(key)||movingDst.has(key)); if (!isMovingCell){ const pad=Math.floor(tileSize*0.16); const cx=px+tileSize/2; const cy=py+tileSize/2; const size=tileSize-pad*2; drawIcon(ctx,cx,cy,size,v); } } ctx.restore(); } if (!paused){ drawPath(); drawShiftAnimation(); } }
 
     // 13) INIT & BINDINGS
     function populateLevelSelect(){ $levelSelect.innerHTML=''; LEVELS.forEach((lv,idx)=>{ const opt=document.createElement('option'); opt.value=String(idx); opt.textContent=`${idx+1}. ${lv.name} (${lv.cols}x${lv.rows}, ${lv.time}s)`; $levelSelect.appendChild(opt); }); $levelSelect.value=String(levelIndex); $chkAutoProgress.checked=!!autoProgress; }
