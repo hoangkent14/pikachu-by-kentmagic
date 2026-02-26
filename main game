@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Pikachu dự án S by kentmagic v0.39e (patched)</title>
+  <title>Pikachu dự án S by kentmagic v0.39h (patched)</title>
   <!--
    ==============================================
   BẢN VÁ LỆCH VẼ
@@ -16,27 +16,100 @@
     :root { --bg:#0066cc; --panel:#455485; --text:#e8ecff; --muted:#a7b0d8; --accent:#66e3ff; --bad:#ff5a7a; }
     body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; background: radial-gradient(1200px 600px at 30% 20%, #192454 0%, var(--bg) 55%); color: var(--text); display:flex; flex-direction:column; min-height:100vh; }
     header, footer { padding:14px 16px; }
-    header { display: grid; gap: 12px; position: relative; z-index: 6; }
+    header { display: grid; gap: 2px; position: relative; z-index: 6; }
     .title { font-weight: 600; letter-spacing: 0.2px; margin-bottom: 2px; color: #ffffff; }
     .ribbon { display: grid; gap: 8px; border-radius: 10px; background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03)); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 8px 32px rgba(0,0,0,0.3); padding: 12px; }
-    .ribbon-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; }
-    .stat-chip { display: flex; align-items: center; gap: 8px; padding: 8px 8px; border-radius: 10px; background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.08); transition: transform 0.2s ease; font-variant-numeric: tabular-nums; -moz-font-feature-settings: "tnum"; -webkit-font-feature-settings: "tnum"; font-feature-settings: "tnum"; }
-    .stat-chip:hover { transform: translateY(-2px); background: rgba(255, 255, 255, 0.05); }
-    b { color: var(--accent); font-weight: 700; }
-    .ribbon.ribbon-actions { background: rgba(255,255,255,0.08) !important; border: 1px solid rgba(255,255,255,0.12) !important; box-shadow: 0 8px 24px rgba(0,0,0,0.18) !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; border-radius: 12px !important; padding: 8px 10px !important; gap: 8px !important; }
-    .ribbon-actions .btn { background: linear-gradient(180deg, rgba(102,227,255,.18), rgba(102,227,255,.08)) !important; border: 1px solid rgba(102,227,255,.35) !important; color: var(--text) !important; padding: 8px 10px !important; border-radius: 12px !important; font-weight: 600 !important; min-height: 32px !important; box-shadow: none !important; font-size: 16px !important; }
-    .ribbon-actions .btn:hover { filter: brightness(1.08); }
+   .ribbon-stats { 
+    display: grid !important; 
+    /* 1. Căn giữa các cột bên trong */
+    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); 
+    justify-content: center !important; 
+    
+    /* 2. Căn giữa cả khối này so với màn hình */
+    width: fit-content !important;    /* Co lại vừa đủ các chip thông số */
+    min-width: 40% ;                  /* Đảm bảo không quá ngắn */
+    max-width: 85% ; 
+    margin: 10px auto 5px auto !important; /* Căn giữa và tạo khoảng trống cho shadow */
+    
+    /* 3. Hiệu ứng đổ bóng (Shadow) */
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 12px !important;
+    padding: 10px !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4) !important; /* Đổ bóng đậm rõ nét */
+    
+    gap: 8px !important; 
+    position: relative;
+    z-index: 5;
+}
+
+/* Tùy chỉnh thêm để các con số bên trong trông nổi bật hơn */
+/* 1. Đảm bảo chip có hiệu ứng chuyển động mượt mà */
+.stat-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.25) !important; /* Nền tối nhẹ */
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    transition: all 0.2s ease-in-out !important; /* Tạo hiệu ứng mượt khi di chuột */
+    cursor: default;
+}
+
+/* 2. Hiệu ứng sáng lên khi di chuột vào (Hover) */
+.stat-chip:hover {
+    transform: translateY(-2px); /* Nhấc nhẹ lên */
+    background: rgba(255, 255, 255, 0.15) !important; /* Làm nền sáng hơn */
+    border-color: var(--accent) !important; /* Đổi viền sang màu accent (xanh sáng) */
+    box-shadow: 0 4px 12px rgba(102, 227, 255, 0.3) !important; /* Thêm ánh sáng tỏa ra */
+}
+
+/* 3. Làm cho chữ b bên trong cũng sáng hơn khi hover */
+.stat-chip:hover b {
+    filter: brightness(1.2);
+    text-shadow: 0 0 8px var(--accent);
+}    /* Gộp chung vào một block duy nhất để dễ kiểm soát */
+.ribbon.ribbon-actions { 
+    background: rgba(255,255,255,0.08) !important; 
+    border: 1px solid rgba(255,255,255,0.12) !important; 
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25) !important; /* Tăng nhẹ độ đậm để dễ nhìn */
+    backdrop-filter: none !important; 
+    -webkit-backdrop-filter: none !important; 
+    border-radius: 12px !important; 
+    padding: 8px 10px !important; 
+    gap: 10px !important; 
+    
+    /* Căn giữa */
+    display: flex !important; 
+    flex-wrap: wrap; 
+    justify-content: center !important; 
+    align-items: center; 
+    width: 65% !important; 
+    margin: 2px auto !important; /* Thêm margin để shadow không bị dính vào viền màn hình */
+}
+    .ribbon-actions .btn {
+      background: linear-gradient(180deg, rgba(102,227,255,.18), rgba(102,227,255,.08)) !important;
+      border: 1px solid rgba(102,227,255,.35) !important; color: var(--text) !important; padding:   8px 10px !important; 
+      border-radius: 12px !important; font-weight: 600 !important; min-height: 32px !important; 
+      box-shadow: none !important; font-size: 16px !important; }
+    .ribbon-actions .btn:hover { 
+　　 filter: brightness(0.1);
+    text-shadow: 0 0 8px var(--accent);
+ }
+    .ribbon-actions .btn:hover { filter: brightness(1.08);transform: translateY(-2px); /* Nhấc nhẹ lên */
+ }
     .ribbon-actions .btn:active { transform: translateY(1px); }
     .ribbon-actions .btn:disabled { opacity:.5; cursor:not-allowed; }
     .ribbon-actions .btn.btn-danger { background: linear-gradient(180deg, rgba(255,90,122,.18), rgba(255,90,122,.08)) !important; border: 1px solid rgba(255,90,122,.35) !important; }
-    .ribbon-actions { display: flex !important; flex-wrap: wrap; justify-content: space-evenly !important; align-items: center; width: 100%; }
+    .ribbon-actions { display: flex !important; flex-wrap: wrap; justify-content: space-evenly !important; align-items: center;  }
     #wrap { position: relative; flex:1; display:flex; justify-content:center; align-items:center; padding: 10px 14px 18px; }
-    canvas { background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03)); border: 1px solid rgba(255,255,255,.15); border-radius: 16px; box-shadow: 0 12px 50px rgba(0,0,0,.35); touch-action: none; user-select: none; -webkit-user-select: none; width: 100%; height: 100%; max-width: 1200px; max-height: 600px; }
+    canvas { background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03)); border: 1px solid rgba(255,255,255,.15); border-radius: 16px; box-shadow: 0 12px 50px rgba(0,0,0,.35); touch-action: none; user-select: none; -webkit-user-select: none; width: 100%; height: 100%; max-width: 95vw; max-height: 80vh; }
     .small { color: var(--muted); font-size: 13px; }
     .overlay { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,0.35); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); z-index: 10; }
     .overlay[hidden] { display: none; }
     .panel { background: rgba(18,26,51,.92); border: 1px solid rgba(255,255,255,.16); border-radius: 18px; padding: 22px 26px; min-width: 420px; text-align: center; box-shadow: 0 12px 50px rgba(0,0,0,.35); }
-    .panel .title { font: 700 24px system-ui; color: #e8ecff; margin-bottom: 8px; }
+    .panel .title { font: 700 24px system-ui; color: #e8ecff; margin-bottom: 2px; }
     .panel .sub   { font: 500 13px system-ui; color: rgba(167,176,216,.95); margin-top: 4px; }
     .panel .score { font: 600 16px system-ui; color: rgba(232,236,255,.9); margin-top: 10px; }
     #startMenu .form { margin-top: 12px; display: grid; gap: 10px; justify-items: center; }
@@ -50,7 +123,7 @@
     .time-right-text b{ color: var(--text); }
     @keyframes pulse { 0%{ filter:brightness(1.00) drop-shadow(0 0 0px rgba(255,0,0,.0)); } 50%{ filter:brightness(1.20) drop-shadow(0 0 10px rgba(255,0,0,.45)); } 100%{ filter:brightness(1.00) drop-shadow(0 0 0px rgba(255,0,0,.0)); } }
     .ribbon { padding: 4px 6px; border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,.25); }
-    .ribbon-stats { gap: 4px; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+    .ribbon-stats { gap: 4px; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));margin: 5px auto 2px auto !important; /* Giảm số 5px xuống còn 2px */ }
     .stat-chip { padding: 3px 6px; border-radius: 6px; min-height: 24px; font-size: 16px; }
     .stat-chip b { font-size: 16px; }
     .ribbon-actions { gap: 4px; }
@@ -118,7 +191,7 @@
       <div class="time-right-text">⏱️ <b id="timeText">600</b>s</div>
     </div>
   </div>
-  <footer class="small" style="opacity:1; padding: 10px 16px 16px;"> 🎮 Pikachu dự án S by kentmagic v0.39d</footer>
+  <footer class="small" style="opacity:1; padding: 10px 16px 16px;"> 🎮 Pikachu dự án S by kentmagic v0.39h</footer>
 
   <script>
   (() => {
